@@ -3,6 +3,7 @@ package pernet
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"net"
 )
@@ -30,29 +31,43 @@ func SendPing(conn net.Conn) (err error) {
 	}
 	return
 }
-func NewClient() (conn net.Conn) {
+
+type Client struct {
+	Conn  net.Conn
+	bconn net.Conn
+}
+
+func NewClient() (conn Client) {
 	// connect to this socket
-	conn, err := net.Dial("tcp", "127.0.0.1:8084")
+	tconn, err := net.Dial("tcp", "127.0.0.1:8084")
 	if err != nil {
 		log.Printf("Dial error: %v\n", err)
 	}
+	conn.Conn = tconn
 	return
 }
-func NewBulkConn(iconn net.Conn) (oconn net.Conn, err error) {
+func (iconn Client) CloseAll() {
+	if iconn.bconn != nil {
+		iconn.bconn.Close()
+	}
+	iconn.Conn.Close()
+}
+func (iconn *Client) NewBulkConn() (err error) {
 	bob := Message{Action: "BConn", Data: "8085"}
 	snd_mess, err := MarshalMessage(bob)
 	if err != nil {
 		log.Fatal("Error marshalling", err)
 		return
 	}
-	fmt.Fprintln(conn, snd_mess)
+	fmt.Fprintln(iconn.Conn, snd_mess)
 	//////////
 	// listen for reply on open connection
-	message, err := bufio.NewReader(conn).ReadString('\n')
+	fmt.Println("Waiting for response from Server")
+	message, err := bufio.NewReader(iconn.Conn).ReadString('\n')
 	if err != nil {
 		fmt.Printf("Read String error: %v\n", err)
 	}
-	//log.Println("Received Message:", message)
+	log.Println("Received Message:", message)
 	item, err := UnmarshalMessage(message)
 	check(err)
 	if item.Action != "Bonn" {
@@ -60,15 +75,25 @@ func NewBulkConn(iconn net.Conn) (oconn net.Conn, err error) {
 		return
 	}
 	// Now we have created a listener for it, open the bulk connection
-	oconn, err = net.Dial("tcp", "127.0.0.1:8085")
+	log.Println("Connect to the Bulk connection that was Bonn")
+	iconn.bconn, err = net.Dial("tcp", "127.0.0.1:8085")
 	check(err)
 	return
 
 }
-func SendRxBulk(count int, conn net.Conn) error {
+func (iconn Client) SendRxBulk(count int) error {
 	data_2_send := make([]byte, count)
-	fmt.Fprintln(conn, data_2_send)
-	_, err := bufio.NewReader(conn).ReadString('\n')
-	check(err)
+	fmt.Fprintln(iconn.bconn, data_2_send)
+	fmt.Println("Sent Bulk Data")
+	_, err := bufio.NewReader(iconn.bconn).ReadString('\n')
+	fmt.Println("Received back the bulk data")
+	if err != nil {
+		if err == io.EOF {
+			log.Printf("Connection with client closed\n")
+			return nil
+		}
+		log.Fatal("Bulk Connection read error: %v\n", err)
+
+	}
 	return err
 }
