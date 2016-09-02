@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"strconv"
 )
 
 type Client struct {
@@ -76,7 +77,9 @@ func (iconn *Client) NewBulkConn() (err error) {
 	}
 	// Now we have created a listener for it, open the bulk connection
 	log.Println("Connect to the Bulk connection that was Bonn")
-	iconn.bconn, err = net.Dial("tcp", "127.0.0.1:8085")
+	_, err = strconv.Atoi(item.Data)
+	check(err)
+	iconn.bconn, err = net.Dial("tcp", "127.0.0.1:"+item.Data)
 	check(err)
 	return
 

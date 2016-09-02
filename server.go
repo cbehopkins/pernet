@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"strconv"
 	"sync"
 )
 
@@ -14,17 +15,19 @@ func check(err error) {
 		panic(err)
 	}
 }
-type serverData {
+
+type serverData struct {
 	sync.RWMutex
-	openConnections map[int] struct{}
+	openConnections map[int]struct{}
 }
-func newServerData () *serverData {
-	sd := new(serverData)
-	sd.openConnections = make(map[int] struct{})
+
+func newServerData() (sd *serverData) {
+	sd = new(serverData)
+	sd.openConnections = make(map[int]struct{})
 	return sd
 }
 func Server() {
-	sd := newServerData
+	sd := newServerData()
 	log.Println("Launching Server...")
 
 	// listen on all interfaces
@@ -45,29 +48,34 @@ func Server() {
 		}
 	}
 }
-func (sd *serverData)HandlePing(item Message, conn net.Conn) {
+func (sd *serverData) HandlePing(item Message, conn net.Conn) {
 	// A ping message simply returns with a pong
 	item.Action = "Pong"
 	snd_mess, err := MarshalMessage(item)
 	check(err)
 	fmt.Fprintln(conn, snd_mess)
 }
-func (sd *serverData) findFreePort () int {
+func (sd *serverData) findFreePort() (i int) {
 	sd.Lock()
 	defer sd.Unlock()
 	ok := true
-	for i:=8084;(i<(1<<16) && ok); i++; {
-		_,ok := openConnections[i]
+	for i = 8084; i < (1<<16) && ok; {
+		_, ok = sd.openConnections[i]
+		if ok {
+			fmt.Println("Port already open:", i)
+			i++
+		}
 	}
-	openConnections[i] = struct{}{}
+	sd.openConnections[i] = struct{}{}
+	fmt.Println("Chosen Port:", i)
 	return i
 }
-func (sd *serverData)HandleBConn(item Message, conn net.Conn) {
+func (sd *serverData) HandleBConn(item Message, conn net.Conn) {
 	// Open up a new channel on specified Port
 	fmt.Println("Starting Bulk connection with port:", item.Data)
 	// FIXME in furture we specify the prt in return message
 	free_port := sd.findFreePort()
-	prt_string := fmt.Sprintf(":%s", free_port)
+	prt_string := fmt.Sprintf(":%s", strconv.Itoa(free_port))
 	ln, err := net.Listen("tcp", prt_string)
 	if err != nil {
 		log.Printf("Listen error: %v\n", err)
@@ -88,7 +96,7 @@ func (sd *serverData)HandleBConn(item Message, conn net.Conn) {
 	}()
 
 	item.Action = "Bonn"
-	item.Data = free_port	// TBD remove port from free list on close
+	item.Data = strconv.Itoa(free_port) // TBD remove port from free list on close
 	snd_mess, err := MarshalMessage(item)
 	check(err)
 	fmt.Fprintln(conn, snd_mess)
