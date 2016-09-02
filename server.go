@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 )
 
 func check(err error) {
@@ -13,9 +14,17 @@ func check(err error) {
 		panic(err)
 	}
 }
-
+type serverData {
+	sync.RWMutex
+	openConnections map[int] struct{}
+}
+func newServerData () *serverData {
+	sd := new(serverData)
+	sd.openConnections = make(map[int] struct{})
+	return sd
+}
 func Server() {
-
+	sd := newServerData
 	log.Println("Launching Server...")
 
 	// listen on all interfaces
@@ -23,7 +32,7 @@ func Server() {
 	if err != nil {
 		log.Printf("Listen error: %v\n", err)
 	}
-
+	sd.openConnections[8084] = struct{}{}
 	for {
 		log.Println("Ready to Listen")
 		// accept connection on port
@@ -32,22 +41,33 @@ func Server() {
 		if err != nil {
 			log.Printf("Accept error: %v\n", err)
 		} else {
-			go HandleConnection(conn)
+			go sd.HandleConnection(conn)
 		}
 	}
 }
-func HandlePing(item Message, conn net.Conn) {
+func (sd *serverData)HandlePing(item Message, conn net.Conn) {
 	// A ping message simply returns with a pong
 	item.Action = "Pong"
 	snd_mess, err := MarshalMessage(item)
 	check(err)
 	fmt.Fprintln(conn, snd_mess)
 }
-func HandleBConn(item Message, conn net.Conn) {
+func (sd *serverData) findFreePort () int {
+	sd.Lock()
+	defer sd.Unlock()
+	ok := true
+	for i:=8084;(i<(1<<16) && ok); i++; {
+		_,ok := openConnections[i]
+	}
+	openConnections[i] = struct{}{}
+	return i
+}
+func (sd *serverData)HandleBConn(item Message, conn net.Conn) {
 	// Open up a new channel on specified Port
 	fmt.Println("Starting Bulk connection with port:", item.Data)
 	// FIXME in furture we specify the prt in return message
-	prt_string := fmt.Sprintf(":%s", item.Data)
+	free_port := sd.findFreePort()
+	prt_string := fmt.Sprintf(":%s", free_port)
 	ln, err := net.Listen("tcp", prt_string)
 	if err != nil {
 		log.Printf("Listen error: %v\n", err)
@@ -68,6 +88,7 @@ func HandleBConn(item Message, conn net.Conn) {
 	}()
 
 	item.Action = "Bonn"
+	item.Data = free_port	// TBD remove port from free list on close
 	snd_mess, err := MarshalMessage(item)
 	check(err)
 	fmt.Fprintln(conn, snd_mess)
@@ -90,7 +111,7 @@ func HandleBulkConnection(conn net.Conn) {
 
 	}
 }
-func HandleConnection(conn net.Conn) {
+func (sd *serverData) HandleConnection(conn net.Conn) {
 	// run loop forever (or until ctrl-c)
 	for {
 		// will listen for message to process ending in newline (\n)
@@ -108,9 +129,9 @@ func HandleConnection(conn net.Conn) {
 		check(err)
 		switch item.Action {
 		case "Ping":
-			HandlePing(item, conn)
+			sd.HandlePing(item, conn)
 		case "BConn":
-			HandleBConn(item, conn)
+			sd.HandleBConn(item, conn)
 		default:
 			log.Fatal("Unknown message", message)
 		}

@@ -8,6 +8,26 @@ import (
 	"net"
 )
 
+type Client struct {
+	Conn  net.Conn
+	bconn net.Conn
+}
+
+func NewClient() (conn Client) {
+	// connect to this socket
+	tconn, err := net.Dial("tcp", "127.0.0.1:8084")
+	if err != nil {
+		log.Printf("Dial error: %v\n", err)
+	}
+	conn.Conn = tconn
+	return
+}
+func (iconn Client) CloseAll() {
+	if iconn.bconn != nil {
+		iconn.bconn.Close()
+	}
+	iconn.Conn.Close()
+}
 func SendPing(conn net.Conn) (err error) {
 	//fmt.Fprintf(conn, string("Ping")+"\n")
 	bob := Message{Action: "Ping"}
@@ -32,26 +52,6 @@ func SendPing(conn net.Conn) (err error) {
 	return
 }
 
-type Client struct {
-	Conn  net.Conn
-	bconn net.Conn
-}
-
-func NewClient() (conn Client) {
-	// connect to this socket
-	tconn, err := net.Dial("tcp", "127.0.0.1:8084")
-	if err != nil {
-		log.Printf("Dial error: %v\n", err)
-	}
-	conn.Conn = tconn
-	return
-}
-func (iconn Client) CloseAll() {
-	if iconn.bconn != nil {
-		iconn.bconn.Close()
-	}
-	iconn.Conn.Close()
-}
 func (iconn *Client) NewBulkConn() (err error) {
 	bob := Message{Action: "BConn", Data: "8085"}
 	snd_mess, err := MarshalMessage(bob)
