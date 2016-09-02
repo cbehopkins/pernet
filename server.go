@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 )
 
@@ -18,12 +19,12 @@ func check(err error) {
 
 type serverData struct {
 	sync.RWMutex
-	openConnections map[int]struct{}
+	openConnections map[int]net.Listener
 }
 
 func newServerData() (sd *serverData) {
 	sd = new(serverData)
-	sd.openConnections = make(map[int]struct{})
+	sd.openConnections = make(map[int]net.Listener)
 	return sd
 }
 func Server() {
@@ -35,14 +36,17 @@ func Server() {
 	if err != nil {
 		log.Printf("Listen error: %v\n", err)
 	}
-	sd.openConnections[8084] = struct{}{}
+	sd.openConnections[8084] = ln
 	for {
 		log.Println("Ready to Listen")
 		// accept connection on port
 		conn, err := ln.Accept()
 		log.Println("Heard something")
 		if err != nil {
-			log.Printf("Accept error: %v\n", err)
+			if err.Error() == "use of closed network connection" {
+				return
+			}
+			log.Fatalln("Accept error:\"%v\"\n", err)
 		} else {
 			go sd.HandleConnection(conn)
 		}
@@ -66,29 +70,59 @@ func (sd *serverData) findFreePort() (i int) {
 			i++
 		}
 	}
-	sd.openConnections[i] = struct{}{}
+	sd.openConnections[i] = nil
 	fmt.Println("Chosen Port:", i)
 	return i
 }
+func (sd *serverData) HandleBConnClose(item Message, conn net.Conn) {
+	port_to_close, err := strconv.Atoi(item.Data)
+	check(err)
+	log.Println("Trying to get lock")
+	sd.RLock()
+	log.Println("got Lock")
+	ln, ok := sd.openConnections[port_to_close]
+	sd.RUnlock()
+	log.Println("Status is:", ok)
+	if ok && ln != nil {
+
+		err = ln.Close()
+		fmt.Println("ln closed")
+		check(err)
+		item.Data = "ok"
+	} else {
+		fmt.Println("inactive connection")
+		item.Data = "Inactive Connection"
+	}
+	snd_mess, err := MarshalMessage(item)
+	check(err)
+	fmt.Fprintln(conn, snd_mess)
+	log.Println("Closed connection port:", port_to_close)
+}
+
 func (sd *serverData) HandleBConn(item Message, conn net.Conn) {
 	// Open up a new channel on specified Port
 	fmt.Println("Starting Bulk connection with port:", item.Data)
-	// FIXME in furture we specify the prt in return message
 	free_port := sd.findFreePort()
 	prt_string := fmt.Sprintf(":%s", strconv.Itoa(free_port))
 	ln, err := net.Listen("tcp", prt_string)
+	sd.openConnections[free_port] = ln
 	if err != nil {
 		log.Printf("Listen error: %v\n", err)
 	}
 
 	go func() {
+		// TBD there is no mechanism to stop this routine
+		// Fix this
 		for {
 			log.Println("Ready to Listen on Bulk Channel")
 			// accept connection on port
 			conn, err := ln.Accept()
 			log.Println("Heard something on Bulk Channel")
 			if err != nil {
-				log.Printf("Accept error: %v\n", err)
+				if strings.Contains(err.Error(), "use of closed network connection") {
+					return
+				}
+				log.Fatalln("Accept error: %v\n", err)
 			} else {
 				go HandleBulkConnection(conn)
 			}
@@ -140,6 +174,8 @@ func (sd *serverData) HandleConnection(conn net.Conn) {
 			sd.HandlePing(item, conn)
 		case "BConn":
 			sd.HandleBConn(item, conn)
+		case "BConnClose":
+			sd.HandleBConnClose(item, conn)
 		default:
 			log.Fatal("Unknown message", message)
 		}

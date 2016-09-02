@@ -53,8 +53,8 @@ func SendPing(conn net.Conn) (err error) {
 	return
 }
 
-func (iconn *Client) NewBulkConn() (err error) {
-	bob := Message{Action: "BConn", Data: "8085"}
+func (iconn *Client) NewBulkConn() (port_num int, err error) {
+	bob := Message{Action: "BConn", Data: ""}
 	snd_mess, err := MarshalMessage(bob)
 	if err != nil {
 		log.Fatal("Error marshalling", err)
@@ -77,12 +77,31 @@ func (iconn *Client) NewBulkConn() (err error) {
 	}
 	// Now we have created a listener for it, open the bulk connection
 	log.Println("Connect to the Bulk connection that was Bonn")
-	_, err = strconv.Atoi(item.Data)
+	port_num, err = strconv.Atoi(item.Data)
 	check(err)
 	iconn.bconn, err = net.Dial("tcp", "127.0.0.1:"+item.Data)
 	check(err)
 	return
 
+}
+func (iconn *Client) CloseBulkConn(port_num int) (err error) {
+	// TBD embed port number in bconn struct?
+	bob := Message{Action: "BConnClose", Data: strconv.Itoa(port_num)}
+	snd_mess, err := MarshalMessage(bob)
+	check(err)
+	fmt.Fprintln(iconn.Conn, snd_mess)
+	message, err := bufio.NewReader(iconn.Conn).ReadString('\n')
+	if err != nil {
+		fmt.Printf("Read String error: %v\n", err)
+	}
+	log.Println("Received Message:", message)
+	item, err := UnmarshalMessage(message)
+	check(err)
+	if item.Data != "ok" || item.Action != "BConnClose" {
+		err = fmt.Errorf("Bulk Connection is not ok:%s", message)
+		return
+	}
+	return
 }
 func (iconn Client) SendRxBulk(count int) error {
 	data_2_send := make([]byte, count)

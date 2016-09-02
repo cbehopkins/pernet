@@ -27,11 +27,13 @@ func TestParrallel(t *testing.T) {
 	conn := NewClient()
 	defer conn.CloseAll()
 	// In ths test we will start up a side TCP channel to check we can send and receive chunks of data
-	err := conn.NewBulkConn()
+	port_num, err := conn.NewBulkConn()
 	check(err)
 	log.Println("Bulk connection opened, try to send something")
 
 	err = conn.SendRxBulk(1000)
+	check(err)
+	err = conn.CloseBulkConn(port_num)
 	check(err)
 
 }
