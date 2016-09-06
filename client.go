@@ -5,13 +5,15 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net"
 	"strconv"
 )
 
 type Client struct {
 	Conn  net.Conn
-	bconn net.Conn
+	bconn map[int]net.Conn // map from port number to connection number
+	r     *rand.Rand
 }
 
 func NewClient() (conn Client) {
@@ -21,11 +23,16 @@ func NewClient() (conn Client) {
 		log.Printf("Dial error: %v\n", err)
 	}
 	conn.Conn = tconn
+	conn.r = rand.New(rand.NewSource(1))
+
 	return
 }
 func (iconn Client) CloseAll() {
-	if iconn.bconn != nil {
-		iconn.bconn.Close()
+	for _, v := range iconn.bconn {
+
+		if v != nil {
+			v.Close()
+		}
 	}
 	iconn.Conn.Close()
 }
@@ -79,13 +86,15 @@ func (iconn *Client) NewBulkConn() (port_num int, err error) {
 	log.Println("Connect to the Bulk connection that was Bonn")
 	port_num, err = strconv.Atoi(item.Data)
 	check(err)
-	iconn.bconn, err = net.Dial("tcp", "127.0.0.1:"+item.Data)
+	if iconn.bconn == nil {
+		iconn.bconn = make(map[int]net.Conn)
+	}
+	iconn.bconn[port_num], err = net.Dial("tcp", "127.0.0.1:"+item.Data)
 	check(err)
 	return
 
 }
 func (iconn *Client) CloseBulkConn(port_num int) (err error) {
-	// TBD embed port number in bconn struct?
 	bob := Message{Action: "BConnClose", Data: strconv.Itoa(port_num)}
 	snd_mess, err := MarshalMessage(bob)
 	check(err)
@@ -101,21 +110,44 @@ func (iconn *Client) CloseBulkConn(port_num int) (err error) {
 		err = fmt.Errorf("Bulk Connection is not ok:%s", message)
 		return
 	}
+	iconn.bconn[port_num].Close()
+	delete(iconn.bconn, port_num)
 	return
 }
-func (iconn Client) SendRxBulk(count int) error {
+func (iconn Client) SendRxBulk(count, port_num int) error {
 	data_2_send := make([]byte, count)
-	fmt.Fprintln(iconn.bconn, data_2_send)
-	fmt.Println("Sent Bulk Data")
-	_, err := bufio.NewReader(iconn.bconn).ReadString('\n')
-	fmt.Println("Received back the bulk data")
-	if err != nil {
-		if err == io.EOF {
-			log.Printf("Connection with client closed\n")
-			return nil
-		}
-		log.Fatal("Bulk Connection read error: %v\n", err)
-
+	for i, _ := range data_2_send {
+		data_2_send[i] = byte(iconn.r.Int())
 	}
-	return err
+	//fmt.Fprintln(iconn.bconn[port_num], data_2_send)
+	iconn.bconn[port_num].Write(data_2_send)
+	iconn.bconn[port_num].Write([]byte("\n"))
+
+	fmt.Println("Sent Bulk Data:", port_num)
+	//data_received, err := bufio.NewReader(iconn.bconn[port_num]).ReadString('\n')
+	data_received := make([]byte, 0, count)
+	var bytes_read int
+	for bytes_read < count {
+		rx_d, err := iconn.bconn[port_num].Read(data_received)
+		fmt.Println("Received from cponnection:", rx_d, bytes_read, count, data_received)
+		if err != nil {
+			if err == io.EOF {
+				log.Printf("Connection with client closed\n")
+				return nil
+			}
+			log.Fatal("Bulk Connection read error: %v\n", err)
+		}
+		bytes_read += rx_d
+	}
+	fmt.Println("Received back the bulk data:", port_num)
+
+	if len(data_2_send) != len(data_received) {
+		log.Fatalf("Incorrect message length:%d,%d\ntype=%T,%T\n%v\n%v\n", len(data_2_send), len(data_received), data_2_send, data_received, data_2_send, data_received)
+	}
+	for i, val := range data_2_send {
+		if data_received[i] != val {
+			log.Fatalf("Incorrect messages:%d\ntype=%t,%t\n%v\n%v\n", i, data_2_send, data_received, data_2_send, data_received)
+		}
+	}
+	return nil
 }

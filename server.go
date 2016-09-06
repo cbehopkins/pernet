@@ -124,7 +124,7 @@ func (sd *serverData) HandleBConn(item Message, conn net.Conn) {
 				}
 				log.Fatalln("Accept error: %v\n", err)
 			} else {
-				go HandleBulkConnection(conn)
+				go HandleBulkConnection(conn, free_port)
 			}
 		}
 	}()
@@ -135,7 +135,7 @@ func (sd *serverData) HandleBConn(item Message, conn net.Conn) {
 	check(err)
 	fmt.Fprintln(conn, snd_mess)
 }
-func HandleBulkConnection(conn net.Conn) {
+func HandleBulkConnection(conn net.Conn, port_num int) {
 	for {
 		// will listen for message to process ending in newline (\n)
 		message, err := bufio.NewReader(conn).ReadString('\n')
@@ -147,9 +147,9 @@ func HandleBulkConnection(conn net.Conn) {
 			log.Printf("Bulk Connection read error: %v\n", err)
 			return
 		}
-		log.Printf("Received Bulk message %s\n", message)
+		log.Printf("Received Bulk message, %T\n", message)
 		fmt.Fprintln(conn, message)
-		log.Println("Sent back bulk message")
+		log.Println("Sent back bulk message:", port_num)
 
 	}
 }
