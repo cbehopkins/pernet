@@ -110,6 +110,7 @@ func (iconn *Client) CloseBulkConn(port_num int) (err error) {
 		err = fmt.Errorf("Bulk Connection is not ok:%s", message)
 		return
 	}
+	fmt.Println("Closing Port number:", port_num)
 	iconn.bconn[port_num].Close()
 	delete(iconn.bconn, port_num)
 	return
@@ -121,22 +122,22 @@ func (iconn Client) SendRxBulk(count, port_num int) error {
 	}
 	//fmt.Fprintln(iconn.bconn[port_num], data_2_send)
 	iconn.bconn[port_num].Write(data_2_send)
-	iconn.bconn[port_num].Write([]byte("\n"))
 
 	fmt.Println("Sent Bulk Data:", port_num)
-	//data_received, err := bufio.NewReader(iconn.bconn[port_num]).ReadString('\n')
-	data_received := make([]byte, 0, count)
+	data_received := make([]byte, count)
 	var bytes_read int
-	for bytes_read < count {
-		rx_d, err := iconn.bconn[port_num].Read(data_received)
-		fmt.Println("Received from cponnection:", rx_d, bytes_read, count, data_received)
-		if err != nil {
-			if err == io.EOF {
-				log.Printf("Connection with client closed\n")
-				return nil
-			}
-			log.Fatal("Bulk Connection read error: %v\n", err)
+	var err error
+	for bytes_read < count && err == nil {
+		var rx_d int
+		rx_d, err = iconn.bconn[port_num].Read(data_received[bytes_read:])
+		//fmt.Println("Received from connection:", port_num, rx_d, bytes_read, count, data_received)
+		if err == nil {
+		} else if err == io.EOF {
+			log.Printf("Connection with client %d closed\n", port_num)
+		} else {
+			log.Fatalf("Bulk Connection read error: %v\n", err)
 		}
+
 		bytes_read += rx_d
 	}
 	fmt.Println("Received back the bulk data:", port_num)
@@ -146,7 +147,7 @@ func (iconn Client) SendRxBulk(count, port_num int) error {
 	}
 	for i, val := range data_2_send {
 		if data_received[i] != val {
-			log.Fatalf("Incorrect messages:%d\ntype=%t,%t\n%v\n%v\n", i, data_2_send, data_received, data_2_send, data_received)
+			log.Fatalf("Incorrect messages:%d\ntype=%T,%T\n%v\n%v\n", i, data_2_send, data_received, data_2_send, data_received)
 		}
 	}
 	return nil

@@ -66,7 +66,7 @@ func (sd *serverData) findFreePort() (i int) {
 	for i = 8084; i < (1<<16) && ok; {
 		_, ok = sd.openConnections[i]
 		if ok {
-			fmt.Println("Port already open:", i)
+			//fmt.Println("Port already open:", i)
 			i++
 		}
 	}
@@ -77,16 +77,16 @@ func (sd *serverData) findFreePort() (i int) {
 func (sd *serverData) HandleBConnClose(item Message, conn net.Conn) {
 	port_to_close, err := strconv.Atoi(item.Data)
 	check(err)
-	log.Println("Trying to get lock")
+	//log.Println("Trying to get lock")
 	sd.RLock()
-	log.Println("got Lock")
+	//log.Println("got Lock")
 	ln, ok := sd.openConnections[port_to_close]
 	sd.RUnlock()
-	log.Println("Status is:", ok)
+	//log.Println("Status is:", ok)
 	if ok && ln != nil {
 
 		err = ln.Close()
-		fmt.Println("ln closed")
+		fmt.Println("Port closed:", port_to_close)
 		check(err)
 		item.Data = "ok"
 	} else {
@@ -117,7 +117,7 @@ func (sd *serverData) HandleBConn(item Message, conn net.Conn) {
 			log.Println("Ready to Listen on Bulk Channel")
 			// accept connection on port
 			conn, err := ln.Accept()
-			log.Println("Heard something on Bulk Channel")
+			//log.Println("Heard something on Bulk Channel")
 			if err != nil {
 				if strings.Contains(err.Error(), "use of closed network connection") {
 					return
@@ -136,22 +136,36 @@ func (sd *serverData) HandleBConn(item Message, conn net.Conn) {
 	fmt.Fprintln(conn, snd_mess)
 }
 func HandleBulkConnection(conn net.Conn, port_num int) {
-	for {
-		// will listen for message to process ending in newline (\n)
-		message, err := bufio.NewReader(conn).ReadString('\n')
+	log.Println("Port Forward started on port ", port_num)
+	//io.Copy(conn, conn)
+	var err error
+	buffer := make([]byte, 16)
+	for err == nil {
+		var cnt int
+		cnt, err = conn.Read(buffer)
 		if err != nil {
-			if err == io.EOF {
-				log.Printf("Connection with client closed\n")
-				return
+			if err != io.EOF {
+				//panic (err)
+				//add in check for "connection reset by peer"
+				//if strings.Contains(err.Error(), "use of closed network connection") {
 			}
-			log.Printf("Bulk Connection read error: %v\n", err)
-			return
 		}
-		log.Printf("Received Bulk message, %T\n", message)
-		fmt.Fprintln(conn, message)
-		log.Println("Sent back bulk message:", port_num)
-
+		fmt.Printf("Read %d bytes,on port %d,%v\n", cnt, port_num, buffer)
+		cntw, errw := conn.Write(buffer[:cnt])
+		//check (errw)
+		if errw != nil {
+			if strings.Contains(errw.Error(), "connection reset by peer") {
+			} else {
+				panic(err)
+			}
+		}
+		if cntw != cnt {
+			log.Fatalf("Unable to write %d, wrote %d, %v\n", cnt, cntw, buffer[:cnt])
+		}
 	}
+	log.Println("Copy finished on port ", port_num)
+	// No need to close a closed connection
+	//conn.Close()
 }
 func (sd *serverData) HandleConnection(conn net.Conn) {
 	// run loop forever (or until ctrl-c)
