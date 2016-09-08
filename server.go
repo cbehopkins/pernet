@@ -32,11 +32,11 @@ func Server() {
 	log.Println("Launching Server...")
 
 	// listen on all interfaces
-	ln, err := net.Listen("tcp", ":8084")
+	ln, err := net.Listen("tcp", ":8088")
 	if err != nil {
 		log.Printf("Listen error: %v\n", err)
 	}
-	sd.openConnections[8084] = ln
+	sd.openConnections[8088] = ln
 	for {
 		log.Println("Ready to Listen")
 		// accept connection on port
@@ -63,7 +63,7 @@ func (sd *serverData) findFreePort() (i int) {
 	sd.Lock()
 	defer sd.Unlock()
 	ok := true
-	for i = 8084; i < (1<<16) && ok; {
+	for i = 8088; i < (1<<16) && ok; {
 		_, ok = sd.openConnections[i]
 		if ok {
 			//fmt.Println("Port already open:", i)
@@ -103,12 +103,21 @@ func (sd *serverData) HandleBConn(item Message, conn net.Conn) {
 	// Open up a new channel on specified Port
 	fmt.Println("Starting Bulk connection with port:", item.Data)
 	free_port := sd.findFreePort()
-	prt_string := fmt.Sprintf(":%s", strconv.Itoa(free_port))
-	ln, err := net.Listen("tcp", prt_string)
-	sd.openConnections[free_port] = ln
-	if err != nil {
-		log.Printf("Listen error: %v\n", err)
+
+	err := fmt.Errorf("Not Dialed")
+	var ln net.Listener
+	for err != nil {
+		// Keep dialing until it works
+		ln, err = net.Listen("tcp", ":"+strconv.Itoa(free_port))
+		sd.openConnections[free_port] = ln
+		if err != nil {
+			log.Printf("Listen error: %v\n", err)
+
+			free_port = sd.findFreePort()
+		}
 	}
+
+	sd.openConnections[free_port] = ln
 
 	go func() {
 		// TBD there is no mechanism to stop this routine
@@ -137,32 +146,33 @@ func (sd *serverData) HandleBConn(item Message, conn net.Conn) {
 }
 func HandleBulkConnection(conn net.Conn, port_num int) {
 	log.Println("Port Forward started on port ", port_num)
-	//io.Copy(conn, conn)
-	var err error
-	buffer := make([]byte, 16)
-	for err == nil {
-		var cnt int
-		cnt, err = conn.Read(buffer)
-		if err != nil {
-			if err != io.EOF {
-				//panic (err)
-				//add in check for "connection reset by peer"
-				//if strings.Contains(err.Error(), "use of closed network connection") {
-			}
-		}
-		fmt.Printf("Read %d bytes,on port %d,%v\n", cnt, port_num, buffer)
-		cntw, errw := conn.Write(buffer[:cnt])
-		//check (errw)
-		if errw != nil {
-			if strings.Contains(errw.Error(), "connection reset by peer") {
-			} else {
-				panic(err)
-			}
-		}
-		if cntw != cnt {
-			log.Fatalf("Unable to write %d, wrote %d, %v\n", cnt, cntw, buffer[:cnt])
-		}
-	}
+	io.Copy(conn, conn)
+	//	var err error
+	//	buffer := make([]byte, 16)
+	//	for err == nil {
+	//		var cnt int
+	//		cnt, err = conn.Read(buffer)
+	//		if err != nil {
+	//			if err != io.EOF {
+	//				if strings.Contains(err.Error(), "connection reset by peer") {
+	//				} else {
+	//					panic(err)
+	//				}
+	//			}
+	//		}
+	//		fmt.Printf("Read %d bytes,on port %d,%v\n", cnt, port_num, buffer)
+	//		cntw, errw := conn.Write(buffer[:cnt])
+	//		//check (errw)
+	//		if errw != nil {
+	//			if strings.Contains(errw.Error(), "connection reset by peer") {
+	//			} else {
+	//				panic(err)
+	//			}
+	//		}
+	//		if cntw != cnt {
+	//			log.Fatalf("Unable to write %d, wrote %d, %v\n", cnt, cntw, buffer[:cnt])
+	//		}
+	//	}
 	log.Println("Copy finished on port ", port_num)
 	// No need to close a closed connection
 	//conn.Close()

@@ -18,7 +18,7 @@ type Client struct {
 
 func NewClient() (conn Client) {
 	// connect to this socket
-	tconn, err := net.Dial("tcp", "127.0.0.1:8084")
+	tconn, err := net.Dial("tcp", "127.0.0.1:8088")
 	if err != nil {
 		log.Printf("Dial error: %v\n", err)
 	}
@@ -70,12 +70,12 @@ func (iconn *Client) NewBulkConn() (port_num int, err error) {
 	fmt.Fprintln(iconn.Conn, snd_mess)
 	//////////
 	// listen for reply on open connection
-	fmt.Println("Waiting for response from Server")
+	//fmt.Println("Waiting for response from Server")
 	message, err := bufio.NewReader(iconn.Conn).ReadString('\n')
 	if err != nil {
 		fmt.Printf("Read String error: %v\n", err)
 	}
-	log.Println("Received Message:", message)
+	//log.Println("Received Message:", message)
 	item, err := UnmarshalMessage(message)
 	check(err)
 	if item.Action != "Bonn" {
@@ -83,7 +83,7 @@ func (iconn *Client) NewBulkConn() (port_num int, err error) {
 		return
 	}
 	// Now we have created a listener for it, open the bulk connection
-	log.Println("Connect to the Bulk connection that was Bonn")
+	//log.Println("Connect to the Bulk connection that was Bonn")
 	port_num, err = strconv.Atoi(item.Data)
 	check(err)
 	if iconn.bconn == nil {
@@ -103,31 +103,41 @@ func (iconn *Client) CloseBulkConn(port_num int) (err error) {
 	if err != nil {
 		fmt.Printf("Read String error: %v\n", err)
 	}
-	log.Println("Received Message:", message)
+	//log.Println("Received Message:", message)
 	item, err := UnmarshalMessage(message)
 	check(err)
 	if item.Data != "ok" || item.Action != "BConnClose" {
 		err = fmt.Errorf("Bulk Connection is not ok:%s", message)
 		return
 	}
-	fmt.Println("Closing Port number:", port_num)
+	//fmt.Println("Closing Port number:", port_num)
 	iconn.bconn[port_num].Close()
 	delete(iconn.bconn, port_num)
 	return
 }
 func (iconn Client) SendRxBulk(count, port_num int) error {
 	data_2_send := make([]byte, count)
-	for i, _ := range data_2_send {
-		data_2_send[i] = byte(iconn.r.Int())
+	data_received := make([]byte, count)
+
+	iconn.GenBulk(data_2_send)
+	iconn.TxRxBulk(data_2_send, data_received, port_num)
+	iconn.CheckData(data_2_send, data_received)
+	return nil
+}
+
+func (iconn Client) GenBulk(data []byte) {
+	for i, _ := range data {
+		data[i] = byte(iconn.r.Int())
 	}
+}
+func (iconn Client) TxRxBulk(data_2_send, data_received []byte, port_num int) {
 	//fmt.Fprintln(iconn.bconn[port_num], data_2_send)
 	iconn.bconn[port_num].Write(data_2_send)
 
-	fmt.Println("Sent Bulk Data:", port_num)
-	data_received := make([]byte, count)
+	//fmt.Println("Sent Bulk Data:", port_num)
 	var bytes_read int
 	var err error
-	for bytes_read < count && err == nil {
+	for bytes_read < len(data_2_send) && err == nil {
 		var rx_d int
 		rx_d, err = iconn.bconn[port_num].Read(data_received[bytes_read:])
 		//fmt.Println("Received from connection:", port_num, rx_d, bytes_read, count, data_received)
@@ -140,8 +150,9 @@ func (iconn Client) SendRxBulk(count, port_num int) error {
 
 		bytes_read += rx_d
 	}
-	fmt.Println("Received back the bulk data:", port_num)
-
+	//fmt.Println("Received back the bulk data:", port_num)
+}
+func (iconn Client) CheckData(data_2_send, data_received []byte) {
 	if len(data_2_send) != len(data_received) {
 		log.Fatalf("Incorrect message length:%d,%d\ntype=%T,%T\n%v\n%v\n", len(data_2_send), len(data_received), data_2_send, data_received, data_2_send, data_received)
 	}
@@ -150,5 +161,5 @@ func (iconn Client) SendRxBulk(count, port_num int) error {
 			log.Fatalf("Incorrect messages:%d\ntype=%T,%T\n%v\n%v\n", i, data_2_send, data_received, data_2_send, data_received)
 		}
 	}
-	return nil
+	return
 }
