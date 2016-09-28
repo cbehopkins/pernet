@@ -11,47 +11,12 @@ import (
 	"testing"
 )
 
-func LoopConn(conn net.Conn) {
+func TcpLoopConn(conn net.Conn) {
 	io.Copy(conn, conn)
 	conn.Close()
 }
-func LoopConnUDP(conn *net.UDPConn) {
 
-	var err error
-	var addr *net.UDPAddr
-	buffer := make([]byte, 64)
-	for err == nil {
-		var cnt int
-		cnt, addr, err = conn.ReadFromUDP(buffer)
-		if err != nil {
-			if err != io.EOF {
-				if strings.Contains(err.Error(), "connection reset by peer") {
-					log.Println("Connection closed in a naughty way")
-				} else {
-					panic(err)
-				}
-			}
-		}
-		if cnt > 0 {
-			log.Printf("Read %d bytes,%v\n", cnt, buffer)
-			cntw, errw := conn.WriteToUDP(buffer[:cnt], addr)
-			log.Println("Write Complete")
-			if errw != nil {
-
-				if strings.Contains(errw.Error(), "connection reset by peer") {
-					log.Println("Naughty close")
-				} else {
-					panic(errw)
-				}
-			}
-			if cntw != cnt {
-				log.Fatalf("Unable to write %d, wrote %d, %v\n", cnt, cntw, buffer[:cnt])
-			}
-		}
-	}
-	log.Println("Copy finished")
-}
-func LoopConnManual(conn net.Conn) {
+func TcpLoopConnManual(conn net.Conn) {
 
 	var err error
 	buffer := make([]byte, 64)
@@ -99,7 +64,7 @@ func dataSrc(conn io.WriteCloser) {
 	// The send can finish before we have finished reading (DUH)
 	// Therefore we close in the reader, not the writer
 }
-func dataSnk(conn io.ReadCloser) {
+func dataSnk(conn io.ReadCloser, closeit bool) {
 	count := 32
 	data_received := make([]byte, count)
 	var bytes_read int
@@ -125,7 +90,9 @@ func dataSnk(conn io.ReadCloser) {
 	if count != bytes_read {
 		log.Fatalf("Incorrect message length:%d %d\n%v\n", bytes_read, len(data_received), data_received)
 	}
-	conn.Close()
+	if closeit {
+		conn.Close()
+	}
 }
 
 // Form a connecton to the supplied port number
@@ -144,23 +111,6 @@ func doConnTCP(prt_num int) (conn net.Conn, err error) {
 	return
 }
 
-// Make a udp connection to the proffered port number
-func doConnUDP(prt_num int) (conn net.Conn, err error) {
-	err = fmt.Errorf("Not Connected")
-	for err != nil {
-		// Keep dialing until it works
-		log.Println("Trying to dial UDP on port", prt_num)
-		conn, err = net.Dial("udp", "127.0.0.1:"+strconv.Itoa(prt_num))
-		if err == nil {
-		} else if strings.Contains(err.Error(), "connection refused") {
-		} else {
-			panic(err)
-		}
-
-	}
-	fmt.Println("UDP Dial succeeded")
-	return
-}
 func testListenTCP() int {
 	err := fmt.Errorf("Not Dialed")
 	var ln net.Listener
@@ -185,52 +135,50 @@ func testListenTCP() int {
 			}
 			log.Fatalln("Accept error:\"%v\"\n", err)
 		} else {
-			go LoopConn(conn)
+			go TcpLoopConn(conn)
 		}
 	}()
 
 	return prt_num
 }
+
 func testListenUDP() int {
-	var conn *net.UDPConn
-	err := fmt.Errorf("Not Dialed")
-	prt_num := 10001
-	for err != nil {
-		addr := net.UDPAddr{
-			Port: prt_num,
-			IP:   net.ParseIP("127.0.0.1"),
-		}
-		log.Println("Trying listening on port:", prt_num)
-		conn, err = net.ListenUDP("udp", &addr)
-		// Keep dialing until it works
-		if err != nil {
-			log.Printf("UDP Listen error: %v\n", err)
-			prt_num++
-		}
-	}
-	log.Println("UDP on port established")
+	conn, prt_num := startUDP(1001)
 	go LoopConnUDP(conn)
 
 	return prt_num
 }
 func TestBas(t *testing.T) {
 	conna, connb := net.Pipe()
-	go LoopConnManual(connb)
+	go TcpLoopConnManual(connb)
 	go dataSrc(conna)
-	dataSnk(conna)
+	dataSnk(conna, true)
 	//conna.Close()
 	//connb.Close()
 }
 func TestPipeTCP(t *testing.T) {
 
-	tconn, _ := doConnTCP(testListenTCP())
+	tconn, err := doConnTCP(testListenTCP())
+	check(err)
 	go dataSrc(tconn)
-	dataSnk(tconn)
+	dataSnk(tconn, true)
 	tconn.Close()
 }
 func TestPipeUDP(t *testing.T) {
-	tconn, _ := doConnUDP(testListenUDP())
+	tconn, err := doConnUDP(testListenUDP())
+	check(err)
 	go dataSrc(tconn)
-	dataSnk(tconn)
+	dataSnk(tconn, true)
+	tconn.Close()
+}
+func TestMultiUDP(t *testing.T) {
+	port_num := testListenUDP()
+	tconn, err := doConnUDP(port_num)
+	check(err)
+	go dataSrc(tconn)
+	dataSnk(tconn, false)
+	go dataSrc(tconn)
+	dataSnk(tconn, false)
+
 	tconn.Close()
 }

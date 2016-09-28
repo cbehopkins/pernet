@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestConn(t *testing.T) {
+func TestBasicPing(t *testing.T) {
 
 	log.Println("Starting Client...")
 
@@ -20,7 +20,7 @@ func TestConn(t *testing.T) {
 	err = SendPing(conn.Conn)
 	check(err)
 }
-func TestBatch(t *testing.T) {
+func TestBasicBulk(t *testing.T) {
 
 	log.Println("Starting Client...")
 
@@ -43,11 +43,38 @@ func TestBatch(t *testing.T) {
 		out_count.Done()
 	}
 	out_count.Wait()
-	//for i := range open_cons {
-	//		err := conn.CloseBulkConn(i)
-	//		check(err)
-	//	}
+	for i := range open_cons {
+		err := conn.CloseBulkConn(i)
+		check(err)
+	}
+}
+func TestBasicUDP(t *testing.T) {
 
+	log.Println("Starting Client...")
+
+	conn := NewClient()
+	//defer conn.CloseAll()
+	open_cons := make(map[int]struct{})
+	// In ths test we will start up a side UDP channel to check we can send and receive chunks of data
+	for i := 0; i < 2; i++ {
+		port_num, err := conn.NewUDPConn()
+		check(err)
+		open_cons[port_num] = struct{}{}
+	}
+	log.Println("Bulk connection opened, try to send something")
+
+	var out_count sync.WaitGroup
+	out_count.Add(2)
+	for i := range open_cons {
+		err := conn.SendRxBulkUdp(10, i)
+		check(err)
+		out_count.Done()
+	}
+	out_count.Wait()
+	for i := range open_cons {
+		err := conn.CloseUDPConn(i)
+		check(err)
+	}
 }
 func runTestNet(num_connections int, len_p uint, t *testing.B) {
 	num_its := 1
