@@ -15,6 +15,7 @@ func (iconn *Client) NewUDPConn() (port_num int, err error) {
 		log.Fatal("Error marshalling", err)
 		return
 	}
+
 	fmt.Fprintln(iconn.Conn, snd_mess)
 	//////////
 	// listen for reply on open connection
@@ -36,7 +37,10 @@ func (iconn *Client) NewUDPConn() (port_num int, err error) {
 	if iconn.uconn == nil {
 		iconn.uconn = make(map[int]net.Conn)
 	}
-	iconn.uconn[port_num], err = doConnUDP(port_num)
+	ra_full := iconn.Conn.RemoteAddr().String()
+	ra, _, err := net.SplitHostPort(ra_full)
+	check(err)
+	iconn.uconn[port_num], err = doConnUDP(ra, port_num)
 	check(err)
 	return
 }

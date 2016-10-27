@@ -39,10 +39,10 @@ func Server() {
 	}
 	sd.openConnections[8088] = ln
 	for {
-		log.Println("Ready to Listen")
+		//log.Println("Ready to Listen")
 		// accept connection on port
 		conn, err := ln.Accept()
-		log.Println("Heard something")
+		//log.Println("Heard something")
 		if err != nil {
 			if err.Error() == "use of closed network connection" {
 				return
@@ -68,13 +68,13 @@ func (sd *serverData) HandleConnection(conn net.Conn) {
 		message, err := bufio.NewReader(conn).ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
-				log.Printf("Connection with client closed\n")
+				//log.Printf("Connection with client closed\n")
 				return
 			}
 			log.Printf("Connection read error: %v\n", err)
 			return
 		}
-		log.Printf("Received message %s\n", message)
+		//log.Printf("Received message %s\n", message)
 		item, err := UnmarshalMessage(message)
 		check(err)
 		switch item.Action {

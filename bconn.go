@@ -95,9 +95,9 @@ func (sd *serverData) HandleBConn(item Message, conn net.Conn) {
 	fmt.Fprintln(conn, snd_mess)
 }
 func HandleBulkConnection(conn net.Conn, port_num int) {
-	log.Println("Port Forward started on port ", port_num)
+	//log.Println("Port Forward started on port ", port_num)
 	io.Copy(conn, conn)
-	log.Println("Copy finished on port ", port_num)
+	//log.Println("Copy finished on port ", port_num)
 	// No need to close a closed connection
 	//conn.Close()
 }
@@ -129,7 +129,7 @@ func HandleBulkConnectionDebug(conn net.Conn, port_num int) {
 			log.Fatalf("Unable to write %d, wrote %d, %v\n", cnt, cntw, buffer[:cnt])
 		}
 	}
-	log.Println("Copy finished on port ", port_num)
+	//log.Println("Copy finished on port ", port_num)
 	// No need to close a closed connection
 	//conn.Close()
 }

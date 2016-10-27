@@ -14,17 +14,17 @@ func startUDP(prt_num int) (conn *net.UDPConn, port_num int) {
 	for err != nil {
 		addr := net.UDPAddr{
 			Port: prt_num,
-			IP:   net.ParseIP("127.0.0.1"),
+			IP:   net.ParseIP("0.0.0.0"),
 		}
-		log.Println("Trying listening on port:", prt_num)
+		//log.Println("Trying listening on port:", prt_num)
 		conn, err = net.ListenUDP("udp", &addr)
 		// Keep dialing until it works
 		if err != nil {
-			log.Printf("UDP Listen error: %v\n", err)
+			//log.Printf("UDP Listen error: %v\n", err)
 			prt_num++
 		}
 	}
-	log.Println("UDP on port established")
+	//log.Println("UDP ready to listen")
 	return conn, prt_num
 }
 func LoopConnUDP(conn *net.UDPConn) {
@@ -38,7 +38,7 @@ func LoopConnUDP(conn *net.UDPConn) {
 		if err != nil {
 			if err != io.EOF {
 				if strings.Contains(err.Error(), "use of closed network connection") {
-					log.Printf("Port connection closed")
+					//log.Printf("Port connection closed")
 				} else if strings.Contains(err.Error(), "connection reset by peer") {
 					log.Println("Connection closed in a naughty way")
 				} else {
@@ -47,9 +47,9 @@ func LoopConnUDP(conn *net.UDPConn) {
 			}
 		}
 		if cnt > 0 {
-			log.Printf("Read %d bytes,%v\n", cnt, buffer)
+			//log.Printf("Read %d bytes,%v\n", cnt, buffer)
 			cntw, errw := conn.WriteToUDP(buffer[:cnt], addr)
-			log.Println("Write Complete")
+			//log.Println("Write Complete")
 			if errw != nil {
 
 				if strings.Contains(errw.Error(), "connection reset by peer") {
@@ -63,16 +63,16 @@ func LoopConnUDP(conn *net.UDPConn) {
 			}
 		}
 	}
-	log.Println("Copy finished")
+	//log.Println("Copy finished")
 }
 
 // Make a udp connection to the proffered port number
-func doConnUDP(prt_num int) (conn net.Conn, err error) {
+func doConnUDP(remote_target string, prt_num int) (conn net.Conn, err error) {
 	err = fmt.Errorf("Not Connected")
 	for err != nil {
 		// Keep dialing until it works
-		log.Println("Trying to dial UDP on port", prt_num)
-		conn, err = net.Dial("udp", "127.0.0.1:"+strconv.Itoa(prt_num))
+		//log.Println("Trying to dial UDP on port", prt_num)
+		conn, err = net.Dial("udp", remote_target+":"+strconv.Itoa(prt_num))
 		if err == nil {
 		} else if strings.Contains(err.Error(), "connection refused") {
 		} else {
@@ -80,7 +80,7 @@ func doConnUDP(prt_num int) (conn net.Conn, err error) {
 		}
 
 	}
-	fmt.Println("UDP Dial succeeded")
+	//fmt.Println("UDP Dial succeeded")
 	return
 }
 func (sd *serverData) HandleUDPConn(item Message, conn net.Conn) {
@@ -90,10 +90,10 @@ func (sd *serverData) HandleUDPConn(item Message, conn net.Conn) {
 	udp_conn, prt_num = startUDP(1001)
 
 	// Step 2, start up the receiver on that port
+	go LoopConnUDP(udp_conn)
 	sd.Lock()
 	sd.openUDPConnections[prt_num] = udp_conn
 	sd.Unlock()
-	go LoopConnUDP(udp_conn)
 
 	// Step 3, Say which port we have done this on
 	// A ping message simply returns with a pong
@@ -116,15 +116,15 @@ func (sd *serverData) HandleUDPConnClose(item Message, conn net.Conn) {
 	if ok && ln != nil {
 
 		err = ln.Close()
-		fmt.Println("Port closed:", port_to_close)
+		//fmt.Println("Port closed:", port_to_close)
 		check(err)
 		item.Data = "ok"
 	} else {
-		fmt.Println("inactive connection")
+		//fmt.Println("inactive connection")
 		item.Data = "Inactive Connection"
 	}
 	snd_mess, err := MarshalMessage(item)
 	check(err)
 	fmt.Fprintln(conn, snd_mess)
-	log.Println("Closed UDP connection port:", port_to_close)
+	//log.Println("Closed UDP connection port:", port_to_close)
 }

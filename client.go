@@ -18,9 +18,13 @@ type Client struct {
 	r *rand.Rand
 }
 
-func NewClient() (conn Client) {
+func NewClient(target string) (conn Client) {
+	if target == "" {
+		target = "127.0.0.1"
+	}
+	tmp_prt := "8088"
 	// connect to this socket
-	tconn, err := net.Dial("tcp", "127.0.0.1:8088")
+	tconn, err := net.Dial("tcp", target+":"+tmp_prt)
 	if err != nil {
 		log.Printf("Dial error: %v\n", err)
 	}
@@ -91,7 +95,11 @@ func (iconn *Client) NewBulkConn() (port_num int, err error) {
 	if iconn.bconn == nil {
 		iconn.bconn = make(map[int]net.Conn)
 	}
-	iconn.bconn[port_num], err = net.Dial("tcp", "127.0.0.1:"+item.Data)
+	ra_full := iconn.Conn.RemoteAddr().String()
+	ra, _, err := net.SplitHostPort(ra_full)
+	check(err)
+	fmt.Printf("I think the remote address is:%s\nPort Num:%s\n", ra, item.Data)
+	iconn.bconn[port_num], err = net.Dial("tcp", ra+":"+item.Data)
 	check(err)
 	return
 }
@@ -118,10 +126,10 @@ func (iconn *Client) CloseBulkConn(port_num int) (err error) {
 }
 
 func (iconn *Client) CloseUDPConn(port_num int) (err error) {
-	fmt.Println("Closing Port number:", port_num)
+	//fmt.Println("Closing Port number:", port_num)
 	iconn.uconn[port_num].Close()
 
-	fmt.Println("Sending close message to server")
+	//fmt.Println("Sending close message to server")
 	bob := Message{Action: "UDPConnClose", Data: strconv.Itoa(port_num)}
 	snd_mess, err := MarshalMessage(bob)
 	check(err)
@@ -145,8 +153,11 @@ func (iconn Client) SendRxBulk(count, port_num int) error {
 	data_received := make([]byte, count)
 
 	iconn.GenBulk(data_2_send)
+	//fmt.Println("Tx, Rx")
 	iconn.TxRxBulk(data_2_send, data_received, port_num)
+	//fmt.Println("Chk")
 	iconn.CheckData(data_2_send, data_received)
+	//fmt.Println("Ceck Complete")
 	return nil
 }
 func (iconn Client) SendRxBulkUdp(count, port_num int) error {
@@ -154,8 +165,12 @@ func (iconn Client) SendRxBulkUdp(count, port_num int) error {
 	data_received := make([]byte, count)
 
 	iconn.GenBulk(data_2_send)
+	//fmt.Println("Tx, Rx")
 	iconn.TxRxBulkUdp(data_2_send, data_received, port_num)
+	//fmt.Println("Chk")
 	iconn.CheckData(data_2_send, data_received)
+	//fmt.Println("Ceck Complete")
+
 	return nil
 }
 func (iconn Client) GenBulk(data []byte) {
@@ -186,16 +201,16 @@ func (iconn Client) TxRxBulk(data_2_send, data_received []byte, port_num int) {
 	//fmt.Println("Received back the bulk data:", port_num)
 }
 func (iconn Client) TxRxBulkUdp(data_2_send, data_received []byte, port_num int) {
-	fmt.Println("Sending bulk UDP data on port", port_num)
+	//fmt.Println("Sending bulk UDP data on port", port_num)
 	iconn.uconn[port_num].Write(data_2_send)
 
-	fmt.Println("Sent Bulk UDP Data:", port_num)
+	//fmt.Println("Sent Bulk UDP Data:", port_num)
 	var bytes_read int
 	var err error
 	for bytes_read < len(data_2_send) && err == nil {
 		var rx_d int
 		rx_d, err = iconn.uconn[port_num].Read(data_received[bytes_read:])
-		//fmt.Println("Received from connection:", port_num, rx_d, bytes_read, count, data_received)
+		//fmt.Println("Received from connection:", port_num, rx_d, bytes_read)
 		if err == nil {
 		} else if err == io.EOF {
 			log.Printf("Connection with client %d closed\n", port_num)
@@ -205,7 +220,7 @@ func (iconn Client) TxRxBulkUdp(data_2_send, data_received []byte, port_num int)
 
 		bytes_read += rx_d
 	}
-	fmt.Println("Received back the bulk Udp data:", port_num)
+	//fmt.Println("Received back the bulk Udp data:", port_num)
 }
 func (iconn Client) CheckData(data_2_send, data_received []byte) {
 	if len(data_2_send) != len(data_received) {

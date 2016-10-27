@@ -33,9 +33,9 @@ func TcpLoopConnManual(conn net.Conn) {
 			}
 		}
 		if cnt > 0 {
-			log.Printf("Read %d bytes,%v\n", cnt, buffer)
+			//log.Printf("Read %d bytes,%v\n", cnt, buffer)
 			cntw, errw := conn.Write(buffer[:cnt])
-			log.Println("Write Complete")
+			//log.Println("Write Complete")
 			if errw != nil {
 
 				if strings.Contains(errw.Error(), "connection reset by peer") {
@@ -49,7 +49,7 @@ func TcpLoopConnManual(conn net.Conn) {
 			}
 		}
 	}
-	log.Println("Copy finished")
+	//log.Println("Copy finished")
 }
 func dataSrc(conn io.WriteCloser) {
 	r := rand.New(rand.NewSource(1))
@@ -73,11 +73,11 @@ func dataSnk(conn io.ReadCloser, closeit bool) {
 		var rx_d int
 		rx_d, err = conn.Read(data_received[bytes_read:])
 		if rx_d > 0 {
-			fmt.Println("Received from connection:", rx_d, bytes_read, count, data_received)
+			//fmt.Println("Received from connection:", rx_d, bytes_read, count, data_received)
 		}
 		if err == nil {
 		} else if err == io.EOF {
-			log.Printf("Connection with client closed\n")
+			//log.Printf("Connection with client closed\n")
 		} else if err == io.ErrClosedPipe {
 			log.Printf("Connection with client Pipe closed\n")
 		} else {
@@ -165,7 +165,7 @@ func TestPipeTCP(t *testing.T) {
 	tconn.Close()
 }
 func TestPipeUDP(t *testing.T) {
-	tconn, err := doConnUDP(testListenUDP())
+	tconn, err := doConnUDP("127.0.0.1", testListenUDP())
 	check(err)
 	go dataSrc(tconn)
 	dataSnk(tconn, true)
@@ -173,7 +173,7 @@ func TestPipeUDP(t *testing.T) {
 }
 func TestMultiUDP(t *testing.T) {
 	port_num := testListenUDP()
-	tconn, err := doConnUDP(port_num)
+	tconn, err := doConnUDP("127.0.0.1", port_num)
 	check(err)
 	go dataSrc(tconn)
 	dataSnk(tconn, false)
