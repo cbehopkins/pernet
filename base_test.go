@@ -146,7 +146,7 @@ func runTestTcp(num_connections int, len_p uint, t *testing.B) {
 		check(err)
 	}
 }
-func runTestUdp(num_connections int, len_p uint, t *testing.B) {
+func runTestUdp(num_connections int, len_p uint, t *testing.B, iters int) {
 
 	//log.Println("Starting Client...")
 	length := (len_p << 1) / uint(num_connections)
@@ -171,24 +171,27 @@ func runTestUdp(num_connections int, len_p uint, t *testing.B) {
 	//log.Println("Bulk connection opened, try to send something")
 
 	var out_count sync.WaitGroup
-	out_count.Add(num_connections)
-	for port_num := range open_cons {
-		go func(pn int) {
-			//err := conn.SendRxBulkUdp(int(length), pn)
-			var sda []byte
-			var dra []byte
-			sda = data_2_send[pn]
-			dra = data_received[pn]
+	for i := 0; i < iters; i++ {
 
-			conn.GenBulk(sda)
-			conn.TxRxBulkUdp(sda, dra, pn)
-			//go func(a, b []byte) {
-			conn.CheckData(sda, dra)
-			out_count.Done()
-			//}(sda, dra)
-		}(port_num)
+		out_count.Add(num_connections)
+		for port_num := range open_cons {
+			go func(pn int) {
+				//err := conn.SendRxBulkUdp(int(length), pn)
+				var sda []byte
+				var dra []byte
+				sda = data_2_send[pn]
+				dra = data_received[pn]
+
+				conn.GenBulk(sda)
+				conn.TxRxBulkUdp(sda, dra, pn)
+				go func(a, c []byte) {
+					conn.CheckData(a, c)
+					out_count.Done()
+				}(sda, dra)
+			}(port_num)
+		}
+		out_count.Wait()
 	}
-	out_count.Wait()
 	for i := range open_cons {
 		err := conn.CloseUDPConn(i)
 		check(err)
@@ -198,5 +201,5 @@ func TestParrallelTcp(t *testing.T) {
 	runTestTcp(16, 10, nil)
 }
 func TestParrallelUdp(t *testing.T) {
-	runTestUdp(16, 10, nil)
+	runTestUdp(16, 10, nil, 1)
 }

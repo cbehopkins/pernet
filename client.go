@@ -26,6 +26,7 @@ func NewClient(target string) (conn Client) {
 	// connect to this socket
 	tconn, err := net.Dial("tcp", target+":"+tmp_prt)
 	if err != nil {
+		// TBD fsail properly
 		log.Printf("Dial error: %v\n", err)
 	}
 	conn.Conn = tconn
