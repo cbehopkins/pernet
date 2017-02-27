@@ -73,7 +73,7 @@ func dataSnk(conn io.ReadCloser, closeit bool) {
 		var rx_d int
 		rx_d, err = conn.Read(data_received[bytes_read:])
 		if rx_d > 0 {
-			//fmt.Println("Received from connection:", rx_d, bytes_read, count, data_received)
+			fmt.Println("Received from connection:", rx_d, bytes_read, count, data_received)
 		}
 		if err == nil {
 		} else if err == io.EOF {

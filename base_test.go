@@ -2,17 +2,17 @@ package pernet
 
 import (
 	"log"
-	"os"
+	//	"os"
 	"sync"
 	"testing"
 )
 
 var remote_target string
 
-func TestMain(m *testing.M) {
-	remote_target = "192.168.0.28"
-	os.Exit(m.Run())
-}
+//func TestMain(m *testing.T) {
+//	remote_target = "192.168.0.28"
+//	os.Exit(m.Run())
+//}
 
 func TestBasicPing(t *testing.T) {
 
