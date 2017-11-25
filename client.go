@@ -8,9 +8,11 @@ import (
 	"math/rand"
 	"net"
 	"strconv"
+	"sync"
 )
 
 type Client struct {
+	lk    *sync.Mutex
 	Conn  net.Conn
 	bconn map[int]net.Conn // map from port number to connection number
 	uconn map[int]net.Conn // map from port number to connection number
@@ -31,7 +33,7 @@ func NewClient(target string) (conn Client) {
 	}
 	conn.Conn = tconn
 	conn.r = rand.New(rand.NewSource(1))
-
+	conn.lk = new(sync.Mutex)
 	return
 }
 func (iconn Client) CloseAll() {
@@ -99,7 +101,7 @@ func (iconn *Client) NewBulkConn() (port_num int, err error) {
 	ra_full := iconn.Conn.RemoteAddr().String()
 	ra, _, err := net.SplitHostPort(ra_full)
 	check(err)
-	fmt.Printf("I think the remote address is:%s\nPort Num:%s\n", ra, item.Data)
+	//fmt.Printf("I think the remote address is:%s\nPort Num:%s\n", ra, item.Data)
 	iconn.bconn[port_num], err = net.Dial("tcp", ra+":"+item.Data)
 	check(err)
 	return
@@ -175,9 +177,11 @@ func (iconn Client) SendRxBulkUdp(count, port_num int) error {
 	return nil
 }
 func (iconn Client) GenBulk(data []byte) {
+	iconn.lk.Lock()
 	for i, _ := range data {
 		data[i] = byte(iconn.r.Int())
 	}
+	iconn.lk.Unlock()
 }
 func (iconn Client) TxRxBulk(data_2_send, data_received []byte, port_num int) {
 	//fmt.Fprintln(iconn.bconn[port_num], data_2_send)

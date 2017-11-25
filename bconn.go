@@ -73,7 +73,7 @@ func (sd *serverData) HandleBConn(item Message, conn net.Conn) {
 		// TBD there is no mechanism to stop this routine
 		// Fix this
 		for {
-			log.Println("Ready to Listen on Bulk Channel")
+			//log.Println("Ready to Listen on Bulk Channel")
 			// accept connection on port
 			conn, err := ln.Accept()
 			//log.Println("Heard something on Bulk Channel")
