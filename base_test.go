@@ -8,7 +8,7 @@ import (
 )
 
 //var remote_target string
-var remote_target = "192.168.0.28"
+var remote_target = "192.168.2.18"
 
 //func TestMain(m *testing.T) {
 //	remote_target = "192.168.0.28"

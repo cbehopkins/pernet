@@ -53,9 +53,10 @@ func BenchmarkTcp_2_512k(b *testing.B) {
 func BenchmarkTcp_16_512k(b *testing.B) {
 	runTestTcp(16, 19, b)
 }
-func BenchmarkTcp_1_1m(b *testing.B) {
-	runTestTcp(1, 20, b)
-}
-func BenchmarkTcp_2_1m(b *testing.B) {
-	runTestTcp(2, 20, b)
-}
+
+//func BenchmarkTcp_1_1m(b *testing.B) {
+//	runTestTcp(1, 20, b)
+//}
+//func BenchmarkTcp_2_1m(b *testing.B) {
+//	runTestTcp(2, 20, b)
+//}

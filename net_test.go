@@ -133,7 +133,7 @@ func testListenTCP() int {
 			if err.Error() == "use of closed network connection" {
 				return
 			}
-			log.Fatalln("Accept error:\"%v\"\n", err)
+			log.Fatalf("Accept error:\"%v\"\n", err)
 		} else {
 			go TcpLoopConn(conn)
 		}
